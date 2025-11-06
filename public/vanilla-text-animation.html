@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vanilla JS - Advanced GSAP Text Animation</title>
+
+    <!-- GSAP Core + ScrollTrigger -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+    <script src="https://unpkg.com/split-type"></script>
+
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, sans-serif;
+        background: linear-gradient(to bottom, #0f172a, #581c87, #0f172a);
+        color: white;
+        min-height: 300vh;
+        padding: 0;
+      }
+
+      .section {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem;
+      }
+
+      .animated-text {
+        position: relative;
+        display: inline-block;
+        font-size: 4rem;
+        font-weight: bold;
+        text-align: center;
+        line-height: 1.2;
+        perspective: 1000px;
+        transform-style: preserve-3d;
+      }
+
+      .animated-text .char {
+        display: inline-block;
+        will-change: transform, opacity;
+      }
+
+      .gradient-wipe {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background: linear-gradient(
+          180deg,
+          transparent 0%,
+          rgba(255, 255, 255, 0.4) 50%,
+          transparent 100%
+        );
+        mix-blend-mode: overlay;
+        -webkit-mask-image: linear-gradient(
+          180deg,
+          rgba(0, 0, 0, 0) 0%,
+          rgba(0, 0, 0, 1) 30%,
+          rgba(0, 0, 0, 1) 70%,
+          rgba(0, 0, 0, 0) 100%
+        );
+        mask-image: linear-gradient(
+          180deg,
+          rgba(0, 0, 0, 0) 0%,
+          rgba(0, 0, 0, 1) 30%,
+          rgba(0, 0, 0, 1) 70%,
+          rgba(0, 0, 0, 0) 100%
+        );
+        z-index: 10;
+      }
+
+      .demo-box {
+        background: rgba(255, 255, 255, 0.05);
+        backdrop-filter: blur(20px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 1rem;
+        padding: 3rem;
+        max-width: 900px;
+        width: 100%;
+      }
+
+      .label {
+        font-size: 0.875rem;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: #a78bfa;
+        margin-bottom: 1rem;
+        text-align: center;
+      }
+
+      /* Accessibility: Reduced motion */
+      @media (prefers-reduced-motion: reduce) {
+        * {
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          transition-duration: 0.01ms !important;
+        }
+
+        .animated-text {
+          opacity: 1 !important;
+          transform: none !important;
+          filter: none !important;
+        }
+
+        .animated-text .char {
+          opacity: 1 !important;
+          transform: none !important;
+        }
+      }
+
+      @media (max-width: 768px) {
+        .animated-text {
+          font-size: 2.5rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="section">
+      <div class="demo-box">
+        <div class="label">Variant A: Once (Play once on scroll)</div>
+        <div id="text-once" class="animated-text" data-variant="once">
+          Multi-Layer Animation
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="demo-box">
+        <div class="label">Variant B: Scrub (Smooth synced reveal)</div>
+        <div id="text-scrub" class="animated-text" data-variant="scrub">
+          Scroll Synced Reveal
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // Register GSAP plugin
+      gsap.registerPlugin(ScrollTrigger);
+
+      // Utility: Check for reduced motion preference
+      const prefersReducedMotion = window.matchMedia(
+        "(prefers-reduced-motion: reduce)"
+      ).matches;
+
+      /**
+       * Manual text splitting utility (fallback if SplitType not available)
+       * Wraps each character in a span
+       */
+      function splitTextManual(element) {
+        const text = element.textContent;
+        const chars = text.split("").map((char) => {
+          const span = document.createElement("span");
+          span.className = "char";
+          span.textContent = char === " " ? "\u00A0" : char; // Preserve spaces
+          span.style.display = "inline-block";
+          return span;
+        });
+
+        element.innerHTML = "";
+        chars.forEach((char) => element.appendChild(char));
+
+        return {
+          chars: chars,
+          revert: () => {
+            element.textContent = text;
+          },
+        };
+      }
+
+      /**
+       * Advanced GSAP Text Animation
+       * Combines per-letter animation with block-level reveal and gradient wipe
+       *
+       * @param {HTMLElement} element - The text element to animate
+       * @param {Object} options - Configuration options
+       */
+      function animateText(element, options = {}) {
+        // Skip if reduced motion is preferred
+        if (prefersReducedMotion) {
+          return;
+        }
+
+        // Default configuration
+        const config = {
+          variant: "once", // 'once' or 'scrub'
+
+          // Letter animation
+          stagger: 0.06, // Delay between letters (seconds)
+          duration: 0.7, // Animation duration per letter
+          ease: "power4.out", // GSAP easing function
+          yStart: 100, // Starting Y position (percentage)
+
+          // Block-level reveal
+          skewY: 5, // Initial skew angle
+          yPercent: 10, // Initial Y offset (percentage)
+          blur: 8, // Initial blur amount (px)
+          scale: 0.98, // Initial scale
+
+          // Gradient wipe
+          enableGradientWipe: true, // Enable gradient overlay
+          wipeDuration: 1.2, // Wipe animation duration
+
+          // ScrollTrigger
+          triggerStart: "top 80%", // When to start animation
+          triggerEnd: "top 30%", // When to end animation
+          scrubAmount: 0.5, // Scrub smoothing (for scrub variant)
+
+          ...options,
+        };
+
+        // Split text into characters using SplitType or manual fallback
+        let splitText;
+        if (typeof SplitType !== "undefined") {
+          splitText = new SplitType(element, {
+            types: "chars",
+            tagName: "span",
+          });
+        } else {
+          splitText = splitTextManual(element);
+        }
+
+        const chars = splitText.chars || [];
+
+        // Set will-change for performance
+        chars.forEach((char) => {
+          char.style.willChange = "transform, opacity";
+          char.style.display = "inline-block";
+        });
+
+        // Create gradient wipe element
+        let wipeElement = null;
+        if (config.enableGradientWipe) {
+          wipeElement = document.createElement("div");
+          wipeElement.className = "gradient-wipe";
+          element.appendChild(wipeElement);
+        }
+
+        // Create GSAP timeline
+        const tl = gsap.timeline({
+          scrollTrigger: {
+            trigger: element,
+            start: config.triggerStart,
+            end: config.triggerEnd,
+
+            // VARIANT A: Play once
+            ...(config.variant === "once" && {
+              toggleActions: "play none none reverse",
+              once: true,
+            }),
+
+            // VARIANT B: Scrub (smooth synced reveal)
+            ...(config.variant === "scrub" && {
+              scrub: config.scrubAmount,
+              pin: false,
+            }),
+
+            // Uncomment to debug:
+            // markers: true
+          },
+        });
+
+        // LAYER 1: Block-level container reveal
+        // Set initial state
+        gsap.set(element, {
+          skewY: config.skewY,
+          yPercent: config.yPercent,
+          scale: config.scale,
+          filter: `blur(${config.blur}px)`,
+        });
+
+        // Animate container to final state
+        tl.to(
+          element,
+          {
+            skewY: 0,
+            yPercent: 0,
+            scale: 1,
+            filter: "blur(0px)",
+            duration: config.variant === "scrub" ? 1 : config.duration * 1.5,
+            ease: config.ease,
+          },
+          0
+        ); // Start at beginning of timeline
+
+        // LAYER 2: Per-letter animation
+        if (chars.length > 0) {
+          // Set initial state for letters
+          gsap.set(chars, {
+            opacity: 0,
+            yPercent: config.yStart,
+          });
+
+          // Animate letters with stagger
+          tl.to(
+            chars,
+            {
+              opacity: 1,
+              yPercent: 0,
+              duration: config.duration,
+              ease: config.ease,
+              stagger: config.stagger,
+            },
+            config.variant === "scrub" ? 0 : 0.1
+          ); // Slight delay for 'once' variant
+        }
+
+        // LAYER 3: Gradient wipe effect
+        if (wipeElement) {
+          gsap.set(wipeElement, {
+            y: "-100%",
+          });
+
+          tl.to(
+            wipeElement,
+            {
+              y: "100%",
+              duration: config.variant === "scrub" ? 1 : config.wipeDuration,
+              ease: "power2.inOut",
+            },
+            0
+          ); // Start with container animation
+        }
+
+        // Return cleanup function
+        return () => {
+          chars.forEach((char) => {
+            char.style.willChange = "auto";
+          });
+          splitText.revert();
+          tl.kill();
+          ScrollTrigger.getAll().forEach((trigger) => {
+            if (trigger.trigger === element) {
+              trigger.kill();
+            }
+          });
+        };
+      }
+
+      // Initialize animations when DOM is ready
+      document.addEventListener("DOMContentLoaded", () => {
+        // Example 1: "Once" variant - plays once when scrolling into view
+        const textOnce = document.getElementById("text-once");
+        animateText(textOnce, {
+          variant: "once",
+          stagger: 0.05,
+          ease: "back.out(1.5)",
+          yStart: 100,
+          blur: 10,
+          skewY: 5,
+        });
+
+        // Example 2: "Scrub" variant - smoothly synced with scroll position
+        const textScrub = document.getElementById("text-scrub");
+        animateText(textScrub, {
+          variant: "scrub",
+          stagger: 0.08,
+          ease: "power4.out",
+          yStart: 120,
+          blur: 12,
+          skewY: 7,
+          scrubAmount: 0.5,
+        });
+      });
+
+      /**
+       * CONFIGURATION GUIDE:
+       *
+       * Tweaking stagger:
+       * - Lower values (0.02-0.04): Fast cascade effect
+       * - Medium values (0.05-0.08): Smooth wave
+       * - Higher values (0.1-0.15): Dramatic reveal
+       *
+       * Tweaking ease:
+       * - 'power4.out': Smooth, professional
+       * - 'back.out(1.5)': Bounce effect
+       * - 'elastic.out(1, 0.5)': Spring effect
+       * - 'power2.out': Quick, snappy
+       *
+       * Tweaking start/end:
+       * - start: 'top 80%' = trigger when top of element hits 80% of viewport
+       * - start: 'top center' = trigger at center
+       * - end: 'top 30%' = animation completes when top hits 30%
+       *
+       * Tweaking mask speed:
+       * - Adjust wipeDuration (0.8-2.0 for different speeds)
+       * - Modify gradient stops in CSS for different wipe patterns
+       */
+    </script>
+  </body>
+</html>

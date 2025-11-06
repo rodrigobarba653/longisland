@@ -1,65 +1,106 @@
-import Image from "next/image";
+"use client";
+
+import { useState, useEffect, useRef } from "react";
+import HeroSection from "./components/sections/HeroSection";
+import GradientBlobs from "./components/ui/GradientBlobs";
+import InsetImageSection from "./components/sections/InsetImageSection";
+import ClientScroll from "./components/ui/ClientScroll";
+import ServicesGrid from "./components/ui/ServicesGrid";
+import PortfolioCarousel from "./components/sections/PortfolioCarousel";
+import ProcessSection from "./components/sections/ProcessSection";
+import ContactForm from "./components/sections/ContactForm";
+import ParallaxImages from "./components/ui/ParallaxImages";
+import LoadingScreen from "./components/ui/LoadingScreen";
+import { content } from "./data/content";
+import { projects } from "./data/projects";
 
 export default function Home() {
+  const [isLoading, setIsLoading] = useState(true);
+  const heroHeadingRef = useRef<HTMLElement | null>(null);
+
+  // Prevent body scroll during loading
+  useEffect(() => {
+    if (isLoading) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [isLoading]);
+
+  // Trigger hero animation after loading completes
+  useEffect(() => {
+    if (!isLoading && heroHeadingRef.current) {
+      // Small delay to ensure page is fully visible
+      setTimeout(() => {
+        const animateHero = (heroHeadingRef.current as any)?.__animateHero;
+        if (animateHero) {
+          animateHero();
+        }
+      }, 300);
+    }
+  }, [isLoading]);
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <>
+      {isLoading && <LoadingScreen onComplete={() => setIsLoading(false)} />}
+
+      <div
+        className={`overflow-x-hidden relative bg-white ${
+          isLoading
+            ? "opacity-0"
+            : "opacity-100 transition-opacity duration-500"
+        }`}
+      >
+        {/* Parallax Images - Global component */}
+        <ParallaxImages />
+
+        {/* Gradient Blobs Background - Absolute positioned with parallax */}
+        <GradientBlobs />
+
+        {/* Hero Section */}
+        <HeroSection
+          title={content.hero.title}
+          subtitle={content.hero.subtitle}
+          onAnimationReady={(element) => {
+            heroHeadingRef.current = element;
+          }}
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+
+        {/* Client Logo Scroll */}
+        <ClientScroll clients={content.clients} />
+
+        {/* Services Grid */}
+        <ServicesGrid services={content.services} />
+
+        {/* Inset Image Section */}
+        <InsetImageSection
+          imageSrc="/images/section2-bg.jpg"
+          initialInsetX={550}
+          initialInsetY={250}
+          finalInsetX={50}
+          finalInsetY={150}
+          mobileInitialInsetX={190}
+          mobileInitialInsetY={120}
+          mobileFinalInsetX={16}
+          mobileFinalInsetY={40}
+          heading={content.about.title}
+          body={content.about.body}
+          ctaText={content.about.cta}
+          ctaHref="#about"
+        />
+
+        {/* Portfolio Carousel */}
+        <PortfolioCarousel items={projects} />
+
+        {/* Process Section */}
+        <ProcessSection steps={content.process} />
+
+        {/* Contact Form */}
+        <ContactForm contactInfo={content.contact} />
+      </div>
+    </>
   );
 }
